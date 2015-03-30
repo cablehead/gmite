@@ -2,21 +2,41 @@ import gdata.spreadsheet.service
 
 
 class Gmite(object):
-    def __init__(self, email, password, source='gmite', debug=False):
-        self.conn = gdata.spreadsheet.service.SpreadsheetsService()
-        self.conn.email = email
-        self.conn.password = password
-        self.conn.source = source
-        self.conn.debug = debug
-        self.conn.ProgrammaticLogin()
+    def __init__(self, conn):
+        self.conn = conn
+
+    @classmethod
+    def from_login(kls, email, password, source='gmite', debug=False):
+        conn = gdata.spreadsheet.service.SpreadsheetsService()
+        conn.email = email
+        conn.password = password
+        conn.source = source
+        conn.debug = debug
+        conn.ProgrammaticLogin()
+        return kls(conn)
+
+    @classmethod
+    def from_auth_token(kls, token):
+        conn = gdata.spreadsheet.service.SpreadsheetsService()
+        conn.SetAuthSubToken(token)
+        return kls(conn)
+
+    def spreadsheets(self):
+        r = self.conn.GetSpreadsheetsFeed()
+        return [
+            Gmite.Spreadsheet(
+                self.conn,
+                entry.id.text.split('/')[-1],
+                entry.title.text) for entry in r.entry]
 
     def spreadsheet(self, key):
         return Gmite.Spreadsheet(self.conn, key)
 
     class Spreadsheet(object):
-        def __init__(self, conn, key):
+        def __init__(self, conn, key, title=None):
             self.conn = conn
             self.key = key
+            self.title = title
 
         def add_worksheet(self, title, col_count, row_count):
             entry = self.conn.AddWorksheet(
@@ -30,9 +50,13 @@ class Gmite(object):
 
         def worksheets(self):
             r = self.conn.GetWorksheetsFeed(key=self.key)
+            self.title = r.title.text
             return [
                 Gmite.Worksheet(self.conn, self.key, entry)
                 for entry in r.entry]
+
+        def __repr__(self):
+            return "<Spreadsheet: '%s'>" % self.key
 
     class Worksheet(object):
         def __init__(self, conn, key, entry):
